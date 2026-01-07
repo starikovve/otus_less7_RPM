@@ -324,4 +324,124 @@ sudo firewall-cmd --reload
 <img width="737" height="653" alt="image" src="https://github.com/user-attachments/assets/c40aa4d8-051a-481d-8baf-c44e5f3d9f37" />
 
 
+2.cоздать свой репозиторий и разместить там ранее собранный RPM
+
+ 2.1 Установка необходимых пакетов
+
+Нам понадобиться для начала сервер nginx и createrepo — утилита для создания метаданных репозитория. 
+```
+sudo dnf install nginx
+sudo dnf install createrepo
+
+```
+2.2 Создание структуры репозитория
+
+```
+# Создаем директорию для репозиториев
+sudo mkdir -p /usr/share/nginx/html/repo/centos/10/x86_64
+
+# Копируем собранные RPM в репозиторий
+sudo cp ~/rpmbuild/RPMS/x86_64/httpd-custom* \
+    /usr/share/nginx/html/repo/centos/10/x86_64/
+
+# Устанавливаем правильные права
+sudo chmod -R 755 /usr/share/nginx/html/repo
+
+```
+
+2.3 Генерация метаданных репозитория
+
+```
+# Создаем метаданные репозитория
+sudo createrepo /usr/share/nginx/html/repo/centos/10/x86_64/
+
+# Проверяем созданную структуру
+ls -lR /usr/share/nginx/html/repo/
+```
+<img width="1024" height="286" alt="image" src="https://github.com/user-attachments/assets/2c74b0ed-5e8c-4b97-b98a-37f48a99b70e" />
+
+
+2.4 Настройка Nginx
+
+```
+Создаем конфигурационный файл для репозитория:
+
+sudo nano /etc/nginx/conf.d/rpm-repo.conf
+```
+Добавьте следующее содержимое: Не забываем , что 80 порт занят нашим кастомным apache
+```
+server {
+    listen 8080;
+    server_name localhost;
+
+    root /usr/share/nginx/html;
+
+    location /repo {
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+
+    location ~ \.rpm$ {
+        types { application/x-rpm rpm; }
+    }
+}
+```
+2.5 Запуск и настройка Nginx
+
+```
+# Проверка конфигурации
+sudo nginx -t
+# Переименовываем дефолтный конфиг
+sudo mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak 2>/dev/null || true
+# Запуск Nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+
+# Проверка статуса
+sudo systemctl status nginx
+
+# Настройка firewall
+sudo firewall-cmd --permanent --add-service=http
+sudo firewall-cmd --permanent --add-port=8080/tcp
+sudo firewall-cmd --reload
+```
+2.6 Проверка доступности репозитория
+
+<img width="1007" height="232" alt="image" src="https://github.com/user-attachments/assets/4a30ab2c-ed81-4de4-8ed2-870d964e0564" />
+
+2.7 Создание файла конфигурации репозитория для клиентов
+
+```
+sudo nano /usr/share/nginx/html/repo/custom-httpd.repo
+
+С содержимым:
+
+[custom-httpd]
+name=Custom Apache HTTP Server Repository
+baseurl=http://ip-address:8080/repo/centos/10/x86_64/
+enabled=1
+gpgcheck=0
+priority=1
+```
+
+Проверка работы репозитория
+
+```
+# Проверка структуры
+tree /usr/share/nginx/html/repo/
+```
+<img width="993" height="319" alt="image" src="https://github.com/user-attachments/assets/1cca3eda-f96c-48a0-95f7-472fa9ab7e71" />
+```
+# Проверка метаданных
+ls -la /usr/share/nginx/html/repo/centos/10/x86_64/repodata/
+```
+<img width="1187" height="184" alt="image" src="https://github.com/user-attachments/assets/c975ff2c-a3b0-420c-ad2c-dadc45574566" />
+
+
+Таким образом у нас 
+собран и установлен RPM-пакет;
+сформирован репозиторий с этим пакетом.
+
+
 
